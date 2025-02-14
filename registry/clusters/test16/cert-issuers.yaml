@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "20"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  name: cert-manager-test16-components
+  namespace: "argocd"
+spec: 
+  destination:
+    name: test16
+    namespace: cert-manager
+  project: default
+  source:
+    path: registry/clusters/test16/cert-issuers
+    repoURL: https://github.com/Marlance/gitops
+    targetRevision: HEAD
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true
