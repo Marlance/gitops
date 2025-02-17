@@ -26,6 +26,9 @@ on:
       aws_region:
         description: 'AWS region'
         required: true
+      cluste_name:
+        description: 'Cluster Name where the application should be deployed'
+        required: true
 
 permissions:
   contents: write
@@ -135,7 +138,6 @@ jobs:
           
           echo "Updated Chart.yaml:"
           cat $CHART_PATH
-
           cd charts/${{ github.event.inputs.application_name }}
 
           CHART_NAME=$(grep "^name:" Chart.yaml | cut -d ' ' -f 2)
@@ -146,6 +148,18 @@ jobs:
           echo "Pushing Helm chart: $CHART_ARCHIVE_FILE"
           helm push "$CHART_ARCHIVE_FILE" oci://ghcr.io/${{ github.repository_owner }}/charts
           
+      
+      - name: Tag Application
+        run : |
+          cd $GITHUB_WORKSPACE
+          cp template-application.yaml registry/clusters/${{ github.event.inputs.cluster_name }}/
+          # Replace placeholders in the copied file
+          sed -i "s/<namespace>/${{ github.event.inputs.application_name }}/g" registry/clusters/${{ github.event.inputs.cluster_name }}/application.yaml
+          sed -i "s/<cluster-name>/${{ github.event.inputs.cluster_name }}/g" registry/clusters/${{ github.event.inputs.cluster_name }}/application.yaml
+          sed -i "s|<chart-version>|$CURRENT_NEXTCHARTVERSION|g" registry/clusters/${{ github.event.inputs.cluster_name }}/application.yaml
+          sed -i "s/<chart-name>/${{ github.event.inputs.application_name }}/g" registry/clusters/${{ github.event.inputs.cluster_name }}/application.yaml
+          sed -i "s/<repo>/${{ github.repository_owner }}/g" registry/clusters/${{ github.event.inputs.cluster_name }}/application.yaml
+
       - name: Commit and push updated Helm chart
         run: |
           git config --global user.name "kbot"
