@@ -90,7 +90,7 @@ jobs:
             echo "Charts directory not found. Using template..."
             mkdir "charts"
             mkdir "$CHARTS_DIR"
-            cp -r "$TEMPLATE_DIR/" "$CHARTS_DIR/"
+            cp -r "$TEMPLATE_DIR"/* "$CHARTS_DIR"/
 
             # Replace <name> and <repo> in chart templates
             find "$CHARTS_DIR" -type f -exec sed -i "s/<name>/${{ github.event.inputs.application_name }}/g" {} +
