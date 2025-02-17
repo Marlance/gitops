@@ -85,7 +85,7 @@ jobs:
         run: |
           CHARTS_DIR="charts/${{ github.event.inputs.application_name }}"
           TEMPLATE_DIR="template-charts"
-
+          ls -la
           if [ ! -d "$CHARTS_DIR" ]; then
             echo "Charts directory not found. Using template..."
             mkdir "$CHARTS_DIR"
