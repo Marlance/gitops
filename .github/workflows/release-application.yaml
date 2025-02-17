@@ -88,6 +88,7 @@ jobs:
 
           if [ ! -d "$CHARTS_DIR" ]; then
             echo "Charts directory not found. Using template..."
+            mkdir "$CHARTS_DIR"
             cp -r "$TEMPLATE_DIR" "$CHARTS_DIR"
 
             # Replace <name> and <repo> in chart templates
