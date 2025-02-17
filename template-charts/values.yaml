@@ -1,0 +1,30 @@
+
+
+serviceAccount:
+  create: true
+  createClusterRoleBindings: true
+  annotations: {}
+  name: "<name>"
+  namespace: "<name>"
+
+
+rbac:
+  create: true
+
+deployment:
+  name: "<name>"
+  namespace: "<name>"
+  secret: "<name>-secret"
+
+image:
+  repository: <repo>
+  pullPolicy:
+  containerPort: 3000
+  replicas:
+  tag: '3067d581658a0ca42c106fb35eb6812e3537a384'
+  secretName: ''
+
+
+labels: ''
+
+nextchartversion: 0.5.2
