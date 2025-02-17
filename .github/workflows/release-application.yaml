@@ -139,6 +139,15 @@ jobs:
           
           echo "Updated Chart.yaml:"
           cat $CHART_PATH
+
+          cd charts/${{ github.event.inputs.application_name }}
+
+          CHART_NAME=$(grep "^name:" Chart.yaml | cut -d ' ' -f 2)
+          CHART_VERSION=$(grep "^version:" Chart.yaml | cut -d ' ' -f 2)
+          CHART_ARCHIVE_FILE="$CHART_NAME-$CHART_VERSION.tgz"
+
+          echo "Pushing Helm chart: $CHART_ARCHIVE_FILE"
+          helm push "$CHART_ARCHIVE_FILE" oci://ghcr.io/${{ github.repository_owner }}/charts
           
       - name: Commit and push updated Helm chart
         run: |
