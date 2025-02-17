@@ -26,7 +26,7 @@ on:
       aws_region:
         description: 'AWS region'
         required: true
-      cluste_name:
+      cluster_name:
         description: 'Cluster Name where the application should be deployed'
         required: true
 
