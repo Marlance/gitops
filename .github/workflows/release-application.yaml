@@ -97,12 +97,6 @@ jobs:
             find "$CHARTS_DIR" -type f -exec sed -i "s|<repo>|ghcr.io/${{ github.repository_owner }}/${{ github.event.inputs.application_name }}:${{ github.sha }}|g" {} +
           fi
 
-      - name: Build Helm chart
-        run: |
-          cd charts/${{ github.event.inputs.application_name }}
-          ls -la
-          helm package .
-
       - name: Login to GitHub Container Registry (GHCR)
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io --username "${{ github.actor }}" --password-stdin
@@ -145,6 +139,7 @@ jobs:
           CHART_NAME=$(grep "^name:" Chart.yaml | cut -d ' ' -f 2)
           CHART_VERSION=$(grep "^version:" Chart.yaml | cut -d ' ' -f 2)
           CHART_ARCHIVE_FILE="$CHART_NAME-$CHART_VERSION.tgz"
+          helm package .
 
           echo "Pushing Helm chart: $CHART_ARCHIVE_FILE"
           helm push "$CHART_ARCHIVE_FILE" oci://ghcr.io/${{ github.repository_owner }}/charts
