@@ -2,10 +2,13 @@ name: release-application
 on: 
   workflow_dispatch:
     inputs:
-      application_name:
-        description: 'Name of the application'
+      dockerfile_repo:
+        description: 'Repository containing the Dockerfile'
         required: true
-        default: 'my-app'
+      dockerfile_ref:
+        description: 'Branch or tag of the repository'
+        required: false
+        default: 'main'
       dockerfile_path:
         description: 'Path to the Dockerfile'
         required: true
@@ -14,6 +17,9 @@ on:
         description: 'Dockerfile name'
         required: true
         default: 'Dockerfile'
+      application_name:
+        description: 'Application name'
+        required: true
       assume_role_arn:
         description: 'Role ARN to assume'
         required: true
@@ -28,12 +34,15 @@ jobs:
   publish-image:
     runs-on: ubuntu-latest
     steps:
-      - name: checkout
+      - name: Checkout current repository (for Helm charts)
+        uses: actions/checkout@v2
+      
+      - name: Checkout repository with Dockerfile
         uses: actions/checkout@v2
         with:
-          repository: "jarededwards/zippy"
-          ref: "main"
-          fetch-depth: 0
+          repository: ${{ github.event.inputs.dockerfile_repo }}
+          ref: ${{ github.event.inputs.dockerfile_ref }}
+          path: dockerfile-repo
       
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -44,7 +53,7 @@ jobs:
         uses: docker/setup-qemu-action@v3
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
+        uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume: ${{ github.event.inputs.assume_role_arn }}
           aws-region: ${{ github.event.inputs.aws_region }}
@@ -53,13 +62,14 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Push application image
+      - name: Build and push application image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
-          echo "Cloning application repository"
-          git clone ${{ github.event.inputs.application_name }}
-          cd ${{ github.event.inputs.dockerfile_path }}
+          echo "Navigating to Dockerfile location"
+          cd dockerfile-repo/${{ github.event.inputs.dockerfile_path }}
+          
+          echo "Building Docker image"
           docker build -f ${{ github.event.inputs.dockerfile_name }} -t ${{ github.event.inputs.application_name }}:latest .
 
           echo "Tagging image"
@@ -67,35 +77,79 @@ jobs:
 
           echo "Pushing image"
           docker push "$ECR_REGISTRY/${{ github.repository_owner }}/${{ github.event.inputs.application_name }}:${{ github.sha }}"
-      
-      - name: checkout
-        uses: actions/checkout@v2
-        
-      - name: get-helm
+
+      - name: Install Helm
         run: |
           wget https://get.helm.sh/helm-v3.16.2-linux-amd64.tar.gz
           tar xvf helm-v3.16.2-linux-amd64.tar.gz
-          
-          alias helm="$(pwd)/linux-amd64/helm"
+          mv linux-amd64/helm /usr/local/bin/helm
+          helm version
 
-      - name: build-chart
+      - name: Prepare Helm chart directory
         run: |
-          cd charts/{{github.event.inputs.application_name}}
+          CHARTS_DIR="charts/${{ github.event.inputs.application_name }}"
+          TEMPLATE_DIR="template-charts"
+
+          if [ ! -d "$CHARTS_DIR" ]; then
+            echo "Charts directory not found. Using template..."
+            cp -r "$TEMPLATE_DIR" "$CHARTS_DIR"
+
+            # Replace <name> and <repo> in chart templates
+            find "$CHARTS_DIR" -type f -exec sed -i "s/<name>/${{ github.event.inputs.application_name }}/g" {} +
+            find "$CHARTS_DIR" -type f -exec sed -i "s|<repo>|ghcr.io/${{ github.repository_owner }}/${{ github.event.inputs.application_name }}:${{ github.sha }}|g" {} +
+          fi
+
+      - name: Build Helm chart
+        run: |
+          cd charts/${{ github.event.inputs.application_name }}
           helm package .
 
-      - name: login-to-ghcr
+      - name: Login to GitHub Container Registry (GHCR)
         run: |
-          echo "loggign into "
-          echo "$GITHUB_TOKEN" | helm registry login -u konstruct-bot --password-stdin ghcr.io
-        env:
-          GITHUB_TOKEN : ${{ secrets.GITHUB_TOKEN }}
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io --username "${{ github.actor }}" --password-stdin
 
-      - name: push-to-ghcr
+      - name: Push Helm chart to GHCR
         run: |
-          cd charts/{{github.event.inputs.application_name}}
+          cd charts/${{ github.event.inputs.application_name }}
+          CHART_PATH=charts/${{ github.event.inputs.application_name }}/Chart.yaml
+          VALUES_PATH=charts/${{ github.event.inputs.application_name }}/values.yaml
+
+          CURRENT_NEXTCHARTVERSION=$(grep "nextchartversion:" $VALUES_PATH | awk '{print $2}')
+          # Parse version components
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_NEXTCHARTVERSION"
           
-          CHART_NAME=$(cat Chart.yaml | grep "^name" | cut -f 2 -d " ")
-          CHART_VERSION=$(cat Chart.yaml | grep "^version" | cut -f 2 -d " ")
-          CHART_ARCHIVE_FILE="$CHART_NAME"-"$CHART_VERSION".tgz
+          # Increment version
+          PATCH=$((PATCH + 1))
+          if [ $PATCH -gt 50 ]; then
+            PATCH=0
+            MINOR=$((MINOR + 1))
+          fi
+          NEW_NEXTCHARTVERSION="$MAJOR.$MINOR.$PATCH"
 
-          helm push "$CHART_ARCHIVE_FILE" oci://ghcr.io/{{}}
+          # Set chart version to nextchartversion
+          echo "Setting version in Chart.yaml to $CURRENT_NEXTCHARTVERSION"
+          sed -i "s/^version:.*/version: $CURRENT_NEXTCHARTVERSION/" $CHART_PATH
+          
+
+          # Update nextchartversion to new value
+          echo "Setting nextchartversion in Chart.yaml to $NEW_NEXTCHARTVERSION"
+          sed -i "s/^nextchartversion:.*/nextchartversion: $NEW_NEXTCHARTVERSION/" $VALUES_PATH
+          
+          # Update values.image.tag to shortSha
+          echo "Setting values.image.tag in values.yaml to '{{inputs.parameters.shortSha}}'"
+          sed -i "s/^  tag:.*/  tag: 'latest'/" $VALUES_PATH
+          
+          echo "Updated Chart.yaml:"
+          cat $CHART_PATH
+          
+      - name: Commit and push updated Helm chart
+        run: |
+          git config --global user.name "kbot"
+          git config --global user.email "kbot@gmail.com"
+          
+          git add charts/${{ github.event.inputs.application_name }}
+          git commit -m "Update Helm chart for ${{ github.event.inputs.application_name }}"
+          git push origin main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
