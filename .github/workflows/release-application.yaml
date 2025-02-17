@@ -109,7 +109,6 @@ jobs:
 
       - name: Push Helm chart to GHCR
         run: |
-          cd charts/${{ github.event.inputs.application_name }}
           CHART_PATH=charts/${{ github.event.inputs.application_name }}/Chart.yaml
           VALUES_PATH=charts/${{ github.event.inputs.application_name }}/values.yaml
 
