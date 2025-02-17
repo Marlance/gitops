@@ -166,7 +166,7 @@ jobs:
           git config --global user.name "kbot"
           git config --global user.email "kbot@gmail.com"
           
-          git add charts/${{ github.event.inputs.application_name }}
+          git add .
           git commit -m "Update Helm chart for ${{ github.event.inputs.application_name }}"
           git push origin main
         env:
