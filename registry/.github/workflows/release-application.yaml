@@ -1,0 +1,101 @@
+name: release-application
+on: 
+  workflow_dispatch:
+    inputs:
+      application_name:
+        description: 'Name of the application'
+        required: true
+        default: 'my-app'
+      dockerfile_path:
+        description: 'Path to the Dockerfile'
+        required: true
+        default: './'
+      dockerfile_name:
+        description: 'Dockerfile name'
+        required: true
+        default: 'Dockerfile'
+      assume_role_arn:
+        description: 'Role ARN to assume'
+        required: true
+      aws_region:
+        description: 'AWS region'
+        required: true
+
+permissions:
+  id-token: write
+
+jobs:
+  publish-image:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+        with:
+          repository: "jarededwards/zippy"
+          ref: "main"
+          fetch-depth: 0
+      
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502
+        with:
+          role-to-assume: ${{ github.event.inputs.assume_role_arn }}
+          aws-region: ${{ github.event.inputs.aws_region }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Push application image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          echo "Cloning application repository"
+          git clone ${{ github.event.inputs.application_name }}
+          cd ${{ github.event.inputs.dockerfile_path }}
+          docker build -f ${{ github.event.inputs.dockerfile_name }} -t ${{ github.event.inputs.application_name }}:latest .
+
+          echo "Tagging image"
+          docker tag ${{ github.event.inputs.application_name }}:latest "$ECR_REGISTRY/${{ github.repository_owner }}/${{ github.event.inputs.application_name }}:${{ github.sha }}"
+
+          echo "Pushing image"
+          docker push "$ECR_REGISTRY/${{ github.repository_owner }}/${{ github.event.inputs.application_name }}:${{ github.sha }}"
+      
+      - name: checkout
+        uses: actions/checkout@v2
+        
+      - name: get-helm
+        run: |
+          wget https://get.helm.sh/helm-v3.16.2-linux-amd64.tar.gz
+          tar xvf helm-v3.16.2-linux-amd64.tar.gz
+          
+          alias helm="$(pwd)/linux-amd64/helm"
+
+      - name: build-chart
+        run: |
+          cd charts/{{github.event.inputs.application_name}}
+          helm package .
+
+      - name: login-to-ghcr
+        run: |
+          echo "loggign into "
+          echo "$GITHUB_TOKEN" | helm registry login -u konstruct-bot --password-stdin ghcr.io
+        env:
+          GITHUB_TOKEN : ${{ secrets.GITHUB_TOKEN }}
+
+      - name: push-to-ghcr
+        run: |
+          cd charts/{{github.event.inputs.application_name}}
+          
+          CHART_NAME=$(cat Chart.yaml | grep "^name" | cut -f 2 -d " ")
+          CHART_VERSION=$(cat Chart.yaml | grep "^version" | cut -f 2 -d " ")
+          CHART_ARCHIVE_FILE="$CHART_NAME"-"$CHART_VERSION".tgz
+
+          helm push "$CHART_ARCHIVE_FILE" oci://ghcr.io/{{}}
