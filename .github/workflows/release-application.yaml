@@ -153,12 +153,13 @@ jobs:
         run : |
           cd $GITHUB_WORKSPACE
           cp template-application.yaml registry/clusters/${{ github.event.inputs.cluster_name }}/
+          mv registry/clusters/${{ github.event.inputs.cluster_name }}/template-application.yaml registry/clusters/${{ github.event.inputs.cluster_name }}/${{ github.event.inputs.application_name }}-application.yaml
           # Replace placeholders in the copied file
-          sed -i "s/<namespace>/${{ github.event.inputs.application_name }}/g" registry/clusters/${{ github.event.inputs.cluster_name }}/application.yaml
-          sed -i "s/<cluster-name>/${{ github.event.inputs.cluster_name }}/g" registry/clusters/${{ github.event.inputs.cluster_name }}/application.yaml
-          sed -i "s|<chart-version>|$CURRENT_NEXTCHARTVERSION|g" registry/clusters/${{ github.event.inputs.cluster_name }}/application.yaml
-          sed -i "s/<chart-name>/${{ github.event.inputs.application_name }}/g" registry/clusters/${{ github.event.inputs.cluster_name }}/application.yaml
-          sed -i "s/<repo>/${{ github.repository_owner }}/g" registry/clusters/${{ github.event.inputs.cluster_name }}/application.yaml
+          sed -i "s/<namespace>/${{ github.event.inputs.application_name }}/g" registry/clusters/${{ github.event.inputs.cluster_name }}/${{ github.event.inputs.application_name }}-application.yaml
+          sed -i "s/<cluster-name>/${{ github.event.inputs.cluster_name }}/g" registry/clusters/${{ github.event.inputs.cluster_name }}/${{ github.event.inputs.application_name }}-application.yaml
+          sed -i "s|<chart-version>|$CURRENT_NEXTCHARTVERSION|g" registry/clusters/${{ github.event.inputs.cluster_name }}/${{ github.event.inputs.application_name }}-application.yaml
+          sed -i "s/<chart-name>/${{ github.event.inputs.application_name }}/g" registry/clusters/${{ github.event.inputs.cluster_name }}/${{ github.event.inputs.application_name }}-application.yaml
+          sed -i "s/<repo>/${{ github.repository_owner }}/g" registry/clusters/${{ github.event.inputs.cluster_name }}/${{ github.event.inputs.application_name }}-application.yaml
 
       - name: Commit and push updated Helm chart
         run: |
