@@ -1,0 +1,30 @@
+
+
+serviceAccount:
+  create: true
+  createClusterRoleBindings: true
+  annotations: {}
+  name: "hello-world"
+  namespace: "hello-world"
+
+
+rbac:
+  create: true
+
+deployment:
+  name: "hello-world"
+  namespace: "hello-world"
+  secret: "hello-world-secret"
+
+image:
+  repository: ghcr.io/marlance/hello-world:a21f4bae60538b9725fe0fa62275bb49ad99cc6d
+  pullPolicy:
+  containerPort: 3000
+  replicas:
+  tag: 'latest'
+  secretName: ''
+
+
+labels: ''
+
+nextchartversion: 0.5.3
